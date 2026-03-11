@@ -80,9 +80,34 @@ namespace DLS.Game
 					HandlePanInput(mouseScreenPos, mouseWorldPos);
 					HandleZoomInput(mouseScreenPos);
 				}
+
+				HandleEdgeScrolling();
 			}
 
 			UpdateCameraState();
+		}
+
+		static void HandleEdgeScrolling()
+		{
+			if (Project.ActiveProject == null || Project.ActiveProject.controller == null) return;
+			if (!Project.ActiveProject.controller.IsPlacingOrMovingElementOrCreatingWire) return;
+
+			Vector2 mousePos = InputHelper.MousePos;
+			float margin = 80f; // Pixels
+			float maxScrollSpeed = 20f * activeView.OrthoSize / StartupOrthoSize; // Scale speed with zoom
+
+			Vector2 scrollDir = Vector2.zero;
+
+			if (mousePos.x < margin) scrollDir.x = -Mathf.InverseLerp(margin, 0, mousePos.x);
+			else if (mousePos.x > Screen.width - margin) scrollDir.x = Mathf.InverseLerp(Screen.width - margin, Screen.width, mousePos.x);
+
+			if (mousePos.y < margin) scrollDir.y = -Mathf.InverseLerp(margin, 0, mousePos.y);
+			else if (mousePos.y > Screen.height - margin) scrollDir.y = Mathf.InverseLerp(Screen.height - margin, Screen.height, mousePos.y);
+
+			if (scrollDir != Vector2.zero)
+			{
+				MovePosition(scrollDir * maxScrollSpeed * Time.unscaledDeltaTime);
+			}
 		}
 
 		// Pan with middle-mouse drag or alt+left-mouse drag

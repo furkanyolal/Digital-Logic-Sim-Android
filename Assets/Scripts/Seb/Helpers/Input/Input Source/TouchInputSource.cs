@@ -131,19 +131,33 @@ namespace Seb.Helpers.InputHandling
 				pendingBackspaces--;
 			}
 
+			int originalTouchCount = Input.touchCount;
+			
+			// Detect if current touch is explicitly a Stylus
+			bool containsStylusTouch = false;
+			for (int i = 0; i < originalTouchCount; i++)
+			{
+				if (Input.GetTouch(i).type == UnityEngine.TouchType.Stylus)
+				{
+					containsStylusTouch = true;
+					break;
+				}
+			}
+
 			// --- Stylus & Palm Rejection Pre-Processing ---
 			bool isStylusHovering = NativeInputHandler.IsNativeHoveringThisFrame;
-			bool isSPenButtonNow = NativeInputHandler.IsNativeSPenButtonPressed || Input.GetMouseButton(1);
+			// Don't fall back to GetMouseButton(1) unless it's explicitly a stylus touch or we're using Native Plugin.
+			// Android often maps two-finger touches to GetMouseButton(1), which was accidentally triggering palm rejection.
+			bool isSPenButtonNow = NativeInputHandler.IsNativeSPenButtonPressed || (containsStylusTouch && Input.GetMouseButton(1));
 			
-			if (isStylusHovering || isSPenButtonNow)
+			if (isStylusHovering || isSPenButtonNow || containsStylusTouch)
 			{
 				lastStylusActivityTime = Time.time;
 				if (isStylusHovering) lastStylusHoverTime = Time.time;
 			}
 			
-			int touchCount = Input.touchCount;
+			int touchCount = originalTouchCount;
 			
-			// Detect if current touch is explicitly a Stylus or a hand-off from hover
 			bool isFirstTouchStylusType = touchCount > 0 && Input.GetTouch(0).type == UnityEngine.TouchType.Stylus;
 			
 			if (touchCount > 0 && !isStylusInteractionInProgress)
@@ -203,13 +217,21 @@ namespace Seb.Helpers.InputHandling
 				{
 					if (maxFingersThisInteraction == 2)
 					{
-						if (now - lastTwoFingerTapTime < 0.3f) TwoFingerDoubleTapThisFrame = true;
-						lastTwoFingerTapTime = now;
+						if (now - lastTwoFingerTapTime < 0.4f)
+						{
+							TwoFingerDoubleTapThisFrame = true;
+							lastTwoFingerTapTime = -1; // Reset to avoid triple-tap triggering it again instantly
+						}
+						else lastTwoFingerTapTime = now;
 					}
 					else if (maxFingersThisInteraction == 3)
 					{
-						if (now - lastThreeFingerTapTime < 0.3f) ThreeFingerDoubleTapThisFrame = true;
-						lastThreeFingerTapTime = now;
+						if (now - lastThreeFingerTapTime < 0.4f)
+						{
+							ThreeFingerDoubleTapThisFrame = true;
+							lastThreeFingerTapTime = -1;
+						}
+						else lastThreeFingerTapTime = now;
 					}
 				}
 			}
