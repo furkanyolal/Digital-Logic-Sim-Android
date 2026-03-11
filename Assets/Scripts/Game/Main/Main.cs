@@ -14,7 +14,7 @@ namespace DLS.Game
 	{
 		public static readonly Version DLSVersion = new(2, 1, 6);
 		public static readonly Version DLSVersion_EarliestCompatible = new(2, 0, 0);
-		public const string LastUpdatedString = "5 May 2025";
+		public const string LastUpdatedString = "12 Mar 2026";
 		public static AppSettings ActiveAppSettings;
 
 		public static Project ActiveProject { get; private set; }
@@ -117,8 +117,8 @@ namespace DLS.Game
 			ProjectDescription initialDescription = new()
 			{
 				ProjectName = projectName,
-				DLSVersion_LastSaved = DLSVersion.ToString(),
-				DLSVersion_EarliestCompatible = DLSVersion_EarliestCompatible.ToString(),
+				DLSVersion_LastSaved = DLSVersion.ToString() + " (Android)",
+				DLSVersion_EarliestCompatible = DLSVersion_EarliestCompatible.ToString() + " (Android)",
 				CreationTime = DateTime.Now,
 				Prefs_ChipPinNamesDisplayMode = PreferencesMenu.DisplayMode_OnHover,
 				Prefs_MainPinNamesDisplayMode = PreferencesMenu.DisplayMode_OnHover,
