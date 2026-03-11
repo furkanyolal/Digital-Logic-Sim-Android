@@ -129,7 +129,7 @@ namespace DLS.Graphics
 			// Display selected, start placement
 			if (UI.Button(displayName, theme.ButtonTheme, pos, new Vector2(width, 0), enabled, false, true, Anchor.TopLeft))
 			{
-				SubChipDescription subChipDesc = new(chipDesc.Name, subChipsWithDisplays[i].ID, string.Empty, Vector2.zero, null);
+				SubChipDescription subChipDesc = new(chipDesc.Name, subChipsWithDisplays[i].ID, string.Empty, Vector2.zero, 0, Array.Empty<OutputPinColourInfo>());
 				SubChipInstance instance = new(chipDesc, subChipDesc);
 				CustomizationSceneDrawer.StartPlacingDisplay(instance);
 			}

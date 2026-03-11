@@ -366,8 +366,18 @@ namespace Seb.Vis.UI
 
 				if (InputHelper.IsMouseDownThisFrame(MouseButton.Left))
 				{
+					bool wasFocused = state.focused;
 					state.SetFocus(mouseInBounds);
 					state.isMouseDownInBounds = mouseInBounds;
+
+					// Open/close Android keyboard on focus change
+					if (InputHelper.IsTouchPlatform)
+					{
+						if (mouseInBounds && !wasFocused)
+							InputHelper.TouchSource?.OpenKeyboard(state.text ?? "");
+						else if (!mouseInBounds && wasFocused)
+							InputHelper.TouchSource?.CloseKeyboard();
+					}
 
 					// Set caret pos based on mouse position
 					if (mouseInBounds) state.SetCursorIndex(CharIndexBeforeMouse(textCentreLeft_ss.x), InputHelper.ShiftIsHeld);
@@ -382,6 +392,9 @@ namespace Seb.Vis.UI
 				if (forceFocus && !state.focused)
 				{
 					state.SetFocus(true);
+					// Open keyboard for force-focused fields on Android
+					if (InputHelper.IsTouchPlatform)
+						InputHelper.TouchSource?.OpenKeyboard(state.text ?? "");
 				}
 
 				// Draw focus outline and update text

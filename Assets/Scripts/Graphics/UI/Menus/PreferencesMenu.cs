@@ -25,6 +25,12 @@ namespace DLS.Graphics
 			"Tab to Toggle",
 		};
 
+		static readonly string[] ToolbarPlacementOptions =
+		{
+			"Top Right",
+			"Top Left"
+		};
+
 		static readonly string[] GridDisplayOptions =
 		{
 			"Off",
@@ -51,18 +57,27 @@ namespace DLS.Graphics
 			"Paused"
 		};
 
+		static readonly string[] BooleanOptions =
+		{
+			"Off",
+			"On"
+		};
+
 		static readonly Vector2 entrySize = new(menuWidth, DrawSettings.SelectorWheelHeight);
 		public static readonly Vector2 settingFieldSize = new(entrySize.x / 3, entrySize.y);
 
 		// ---- State ----
 		static readonly UIHandle ID_MainPinNames = new("PREFS_MainPinNames");
 		static readonly UIHandle ID_ChipPinNames = new("PREFS_ChipPinNames");
+		static readonly UIHandle ID_ToolbarPlacement = new("PREFS_ToolbarPlacement");
 		static readonly UIHandle ID_GridDisplay = new("PREFS_GridDisplay");
 		static readonly UIHandle ID_Snapping = new("PREFS_Snapping");
 		static readonly UIHandle ID_StraightWires = new("PREFS_StraightWires");
 		static readonly UIHandle ID_SimStatus = new("PREFS_SimStatus");
 		static readonly UIHandle ID_SimFrequencyField = new("PREFS_SimTickTarget");
 		static readonly UIHandle ID_ClockSpeedInput = new("PREFS_ClockSpeed");
+		static readonly UIHandle ID_RadialMenu = new("PREFS_RadialMenu");
+		static readonly UIHandle ID_HapticFeedback = new("PREFS_HapticFeedback");
 
 		static readonly string showGridLabel = "Show grid" + CreateShortcutString("Ctrl+G");
 		static readonly string simStatusLabel = "Sim Status" + CreateShortcutString("Ctrl+Space");
@@ -98,10 +113,14 @@ namespace DLS.Graphics
 				DrawHeader("DISPLAY:");
 				int mainPinNamesMode = DrawNextWheel("Show I/O pin names", PinDisplayOptions, ID_MainPinNames);
 				int chipPinNamesMode = DrawNextWheel("Show chip pin names", PinDisplayOptions, ID_ChipPinNames);
+				int toolbarPlacementMode = DrawNextWheel("Toolbar Position", ToolbarPlacementOptions, ID_ToolbarPlacement);
 				int gridDisplayMode = DrawNextWheel(showGridLabel, GridDisplayOptions, ID_GridDisplay);
 				DrawHeader("EDITING:");
 				int snappingMode = DrawNextWheel("Snap to grid", SnappingOptions, ID_Snapping);
 				int straightWireMode = DrawNextWheel("Straight wires", StraightWireOptions, ID_StraightWires);
+				DrawHeader("INTERFACE:");
+				int radialMenuMode = DrawNextWheel("Use Radial Menu", BooleanOptions, ID_RadialMenu);
+				int hapticMode = DrawNextWheel("Haptic Feedback", BooleanOptions, ID_HapticFeedback);
 
 				DrawHeader("SIMULATION:");
 				bool pauseSim = MenuHelper.LabeledOptionsWheel(simStatusLabel, labelCol, labelPosCurr, entrySize, ID_SimStatus, SimulationStatusOptions, settingFieldSize.x, true) == 1;
@@ -134,9 +153,12 @@ namespace DLS.Graphics
 				// Assign changes immediately so can see them take effect in background
 				project.description.Prefs_MainPinNamesDisplayMode = mainPinNamesMode;
 				project.description.Prefs_ChipPinNamesDisplayMode = chipPinNamesMode;
+				project.description.Prefs_ToolbarPlacement = toolbarPlacementMode;
 				project.description.Prefs_GridDisplayMode = gridDisplayMode;
 				project.description.Prefs_Snapping = snappingMode;
 				project.description.Prefs_StraightWires = straightWireMode;
+				project.description.Prefs_UseRadialMenu = radialMenuMode == 1;
+				project.description.Prefs_HapticFeedback = hapticMode == 1;
 				project.description.Prefs_SimTargetStepsPerSecond = targetSimTicksPerSecond;
 				project.description.Prefs_SimStepsPerClockTick = clockSpeed;
 				project.description.Prefs_SimPaused = pauseSim;
@@ -203,9 +225,12 @@ namespace DLS.Graphics
 			// -- Wheels
 			UI.GetWheelSelectorState(ID_MainPinNames).index = projDesc.Prefs_MainPinNamesDisplayMode;
 			UI.GetWheelSelectorState(ID_ChipPinNames).index = projDesc.Prefs_ChipPinNamesDisplayMode;
+			UI.GetWheelSelectorState(ID_ToolbarPlacement).index = projDesc.Prefs_ToolbarPlacement;
 			UI.GetWheelSelectorState(ID_GridDisplay).index = projDesc.Prefs_GridDisplayMode;
 			UI.GetWheelSelectorState(ID_Snapping).index = projDesc.Prefs_Snapping;
 			UI.GetWheelSelectorState(ID_StraightWires).index = projDesc.Prefs_StraightWires;
+			UI.GetWheelSelectorState(ID_RadialMenu).index = projDesc.Prefs_UseRadialMenu ? 1 : 0;
+			UI.GetWheelSelectorState(ID_HapticFeedback).index = projDesc.Prefs_HapticFeedback ? 1 : 0;
 			UI.GetWheelSelectorState(ID_SimStatus).index = projDesc.Prefs_SimPaused ? 1 : 0;
 			// -- Input fields
 			UI.GetInputFieldState(ID_SimFrequencyField).SetText(projDesc.Prefs_SimTargetStepsPerSecond + "", false);

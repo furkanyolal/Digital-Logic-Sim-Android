@@ -135,7 +135,7 @@ namespace DLS.Graphics
 			CancelConfirmInteractableState[ConfirmIndex] = canConfirm;
 			int buttonIndex = UI.HorizontalButtonGroup(CancelConfirmButtonNames, CancelConfirmInteractableState, Theme.ButtonTheme, topLeft, width, DefaultButtonSpacing, 0, Anchor.TopLeft);
 
-			if (useKeyboardShortcuts)
+			if (useKeyboardShortcuts && !InputHelper.IsTouchPlatform)
 			{
 				if (canCancel && KeyboardShortcuts.CancelShortcutTriggered) buttonIndex = CancelIndex;
 				if (canConfirm && KeyboardShortcuts.ConfirmShortcutTriggered) buttonIndex = ConfirmIndex;

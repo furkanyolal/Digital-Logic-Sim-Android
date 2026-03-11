@@ -1,5 +1,7 @@
 using DLS.Game;
+using Seb.Vis;
 using Seb.Vis.UI;
+using UnityEngine;
 
 namespace DLS.Graphics
 {
@@ -31,7 +33,7 @@ namespace DLS.Graphics
 		{
 			NotifyIfActiveMenuChanged();
 
-			using (UI.CreateFixedAspectUIScope(drawLetterbox: true))
+			using (Application.platform == RuntimePlatform.Android ? UI.CreateUIScope() : UI.CreateFixedAspectUIScope(drawLetterbox: true))
 			{
 				if (ActiveMenu is MenuType.MainMenu)
 				{
@@ -41,9 +43,32 @@ namespace DLS.Graphics
 				{
 					DrawProjectMenus(Project.ActiveProject);
 				}
+
+				// Android on-screen toolbar (only renders on touch platforms)
+				AndroidToolbar.Draw();
+
+				if (Project.ActiveProject != null && Project.ActiveProject.showDebugOverlay)
+				{
+					DrawPerformanceOverlay();
+				}
 			}
 
 			InteractionState.MouseIsOverUI = UI.IsMouseOverUIThisFrame;
+		}
+
+		static void DrawPerformanceOverlay()
+		{
+			float fps = 1.0f / Time.unscaledDeltaTime;
+			Project p = Project.ActiveProject;
+			string text = $"FPS: {fps:0}\nSim: {p.simAvgTicksPerSec:0} Hz\nSim Load: {p.simThreadBusyRatio * 100:0}%";
+
+			DrawSettings.UIThemeDLS theme = DrawSettings.ActiveUITheme;
+			Vector2 size = Seb.Vis.Draw.CalculateTextBoundsSize(text, theme.FontSizeRegular, theme.FontRegular);
+			size += Vector2.one * 0.5f;
+			Vector2 pos = new Vector2(UI.Width - 0.5f, UI.Height - 0.5f);
+
+			UI.DrawPanel(pos, size, new Color(0, 0, 0, 0.5f), Anchor.TopRight);
+			UI.DrawText(text, theme.FontRegular, theme.FontSizeRegular, pos - Vector2.one * 0.25f, Anchor.TopRight, Color.white);
 		}
 
 		static void DrawAppMenus()

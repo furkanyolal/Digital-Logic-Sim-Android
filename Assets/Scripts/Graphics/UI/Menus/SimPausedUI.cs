@@ -17,7 +17,7 @@ namespace DLS.Graphics
 			UI.DrawPanel(UI.TopLeft, new Vector2(UI.Width, InfoBarHeight), ActiveUITheme.InfoBarCol, Anchor.TopLeft);
 			Bounds2D panelBounds = UI.PrevBounds;
 
-			UI.DrawText("Simulation Paused <color=#886600ff>(press space to advance one step)", MenuHelper.Theme.FontBold, MenuHelper.Theme.FontSizeRegular, panelBounds.Centre, Anchor.TextCentre, Color.yellow);
+			UI.DrawText("Simulation Paused <color=#886600ff>(press STEP to advance one step)", MenuHelper.Theme.FontBold, MenuHelper.Theme.FontSizeRegular, panelBounds.Centre, Anchor.TextCentre, Color.yellow);
 
 			if (stepCountPrev != Project.ActiveProject.simPausedSingleStepCounter || string.IsNullOrEmpty(stepString))
 			{

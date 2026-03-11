@@ -11,6 +11,7 @@ namespace DLS.Graphics
 		const string MaxLabelLength = "MY LONG LABEL TEXT";
 		static SubChipInstance subChip;
 		static readonly UIHandle ID_NameField = new("ChipLabelMenu_NameField");
+		static int openedFrame = -1;
 
 		static readonly string[] CancelConfirmButtonNames =
 		{
@@ -24,8 +25,9 @@ namespace DLS.Graphics
 			subChip = (SubChipInstance)ContextMenu.interactionContext;
 
 			InputFieldState inputFieldState = UI.GetInputFieldState(ID_NameField);
-			inputFieldState.SetText(subChip.Label);
-			inputFieldState.SelectAll();
+			inputFieldState.SetText(subChip.Label, false); // Set text without forcing focus
+			openedFrame = Time.frameCount;
+			Seb.Helpers.Haptics.LightClick(Project.ActiveProject.description.Prefs_HapticFeedback);
 		}
 
 		public static void DrawMenu()
@@ -44,8 +46,8 @@ namespace DLS.Graphics
 				Vector2 inputFieldSize = unpaddedSize + new Vector2(padX, 2.25f);
 				Vector2 pos = UI.Centre + Vector2.up * 5;
 
-				// Draw input field
-				InputFieldState inputFieldState = UI.InputField(ID_NameField, inputTheme, pos, inputFieldSize, subChip.Label, Anchor.Centre, padX / 2, ValidateNameInput, true);
+				// Draw input field (forceFocus set to false)
+				InputFieldState inputFieldState = UI.InputField(ID_NameField, inputTheme, pos, inputFieldSize, subChip.Label, Anchor.Centre, padX / 2, ValidateNameInput, false);
 				Bounds2D inputFieldBounds = UI.PrevBounds;
 				string newName = inputFieldState.text;
 
@@ -55,20 +57,28 @@ namespace DLS.Graphics
 
 				MenuHelper.DrawReservedMenuPanel(panelID, UI.GetCurrentBoundsScope());
 
+				// Safety: Ignore input for 2 frames after opening to prevent click bleed-through
+				bool isSafe = (Time.frameCount - openedFrame) > 2;
+
 				// Keyboard shortcuts and UI input
-				if (KeyboardShortcuts.CancelShortcutTriggered || buttonIndex == 0) Cancel();
-				else if (KeyboardShortcuts.ConfirmShortcutTriggered || buttonIndex == 1) Confirm(newName);
+				bool cancelTriggered = (KeyboardShortcuts.CancelShortcutTriggered && isSafe) || (buttonIndex == 0 && isSafe);
+				bool confirmTriggered = (KeyboardShortcuts.ConfirmShortcutTriggered && isSafe) || (buttonIndex == 1 && isSafe);
+
+				if (cancelTriggered) Cancel();
+				else if (confirmTriggered) Confirm(newName);
 			}
 		}
 
 		static void Confirm(string newName)
 		{
 			subChip.Label = newName;
+			Seb.Helpers.InputHelper.TouchSource?.CloseKeyboard();
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
 		}
 
 		static void Cancel()
 		{
+			Seb.Helpers.InputHelper.TouchSource?.CloseKeyboard();
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
 		}
 

@@ -313,7 +313,7 @@ namespace DLS.Graphics
 					{
 						closeActiveCollectionMultiModeExit = true;
 					}
-					else
+					else if (!InputHelper.IsTouchPlatform)
 					{
 						activeCollection = null;
 					}

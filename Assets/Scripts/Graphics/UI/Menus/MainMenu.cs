@@ -313,20 +313,24 @@ namespace DLS.Graphics
 			{
 				Draw.ID backgroundPanelID = UI.ReservePanel();
 
-				// -- Resolution --
-				bool resEnabled = EditedAppSettings.fullscreenMode == FullScreenMode.Windowed;
-				UI.DrawText("Resolution", theme.FontRegular, theme.FontSizeRegular, pos, Anchor.CentreLeft, Color.white);
-				string[] resNames = resEnabled ? ResolutionNames : FullScreenResName;
-				int resIndex = UI.WheelSelector(ID_DisplayResolutionWheel, resNames, new Vector2(elementOriginRight, pos.y), wheelSize, theme.OptionsWheel, Anchor.CentreRight, enabled: resEnabled);
-				EditedAppSettings.ResolutionX = Resolutions[resIndex].x;
-				EditedAppSettings.ResolutionY = Resolutions[resIndex].y;
+				// Resolution and Fullscreen settings — desktop only
+				if (Application.platform != RuntimePlatform.Android)
+				{
+					// -- Resolution --
+					bool resEnabled = EditedAppSettings.fullscreenMode == FullScreenMode.Windowed;
+					UI.DrawText("Resolution", theme.FontRegular, theme.FontSizeRegular, pos, Anchor.CentreLeft, Color.white);
+					string[] resNames = resEnabled ? ResolutionNames : FullScreenResName;
+					int resIndex = UI.WheelSelector(ID_DisplayResolutionWheel, resNames, new Vector2(elementOriginRight, pos.y), wheelSize, theme.OptionsWheel, Anchor.CentreRight, enabled: resEnabled);
+					EditedAppSettings.ResolutionX = Resolutions[resIndex].x;
+					EditedAppSettings.ResolutionY = Resolutions[resIndex].y;
 
-				// -- Full screen --
-				pos += Vector2.down * 4;
-				UI.DrawText("Fullscreen", theme.FontRegular, theme.FontSizeRegular, pos, Anchor.CentreLeft, Color.white);
-				int fullScreenSettingIndex = UI.WheelSelector(ID_FullscreenWheel, SettingsWheelFullScreenOptions, new Vector2(elementOriginRight, pos.y), wheelSize, theme.OptionsWheel, Anchor.CentreRight);
-				EditedAppSettings.fullscreenMode = FullScreenModes[fullScreenSettingIndex];
-				pos += Vector2.down * 4;
+					// -- Full screen --
+					pos += Vector2.down * 4;
+					UI.DrawText("Fullscreen", theme.FontRegular, theme.FontSizeRegular, pos, Anchor.CentreLeft, Color.white);
+					int fullScreenSettingIndex = UI.WheelSelector(ID_FullscreenWheel, SettingsWheelFullScreenOptions, new Vector2(elementOriginRight, pos.y), wheelSize, theme.OptionsWheel, Anchor.CentreRight);
+					EditedAppSettings.fullscreenMode = FullScreenModes[fullScreenSettingIndex];
+					pos += Vector2.down * 4;
+				}
 
 				// -- Vsync --
 				UI.DrawText("VSync", theme.FontRegular, theme.FontSizeRegular, pos, Anchor.CentreLeft, Color.white);

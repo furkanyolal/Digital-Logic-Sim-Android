@@ -30,6 +30,7 @@ namespace DLS.Graphics
 
 
 		static readonly MenuEntry deleteEntry = new(Format("DELETE"), Delete, CanDelete);
+		static readonly MenuEntry rotateEntry = new(Format("ROTATE"), Rotate, CanRotate);
 		static readonly MenuEntry openChipEntry = new(Format("OPEN"), OpenChip, CanOpenChip);
 		static readonly MenuEntry labelChipEntry = new(Format("LABEL"), OpenChipLabelPopup, CanLabelChip);
 
@@ -38,12 +39,14 @@ namespace DLS.Graphics
 			new(Format("VIEW"), EnterViewMode, CanEnterViewMode),
 			openChipEntry,
 			labelChipEntry,
+			rotateEntry,
 			deleteEntry
 		};
 
 		static readonly MenuEntry[] entries_builtinSubchip =
 		{
 			labelChipEntry,
+			rotateEntry,
 			deleteEntry
 		};
 
@@ -53,6 +56,7 @@ namespace DLS.Graphics
 		{
 			new(Format("FLIP"), FlipBus, CanFlipBus),
 			labelChipEntry,
+			rotateEntry,
 			deleteEntry
 		};
 
@@ -60,6 +64,7 @@ namespace DLS.Graphics
 		{
 			new(Format("REBIND"), OpenKeyBindMenu, CanEditCurrentChip),
 			labelChipEntry,
+			rotateEntry,
 			deleteEntry
 		};
 
@@ -67,6 +72,7 @@ namespace DLS.Graphics
 		{
 			new(Format("EDIT"), OpenRomEditMenu, CanEditCurrentChip),
 			labelChipEntry,
+			rotateEntry,
 			deleteEntry
 		};
 
@@ -74,6 +80,7 @@ namespace DLS.Graphics
 		{
 			new(Format("EDIT"), OpenPulseEditMenu, CanEditCurrentChip),
 			labelChipEntry,
+			rotateEntry,
 			deleteEntry
 		};
 
@@ -83,6 +90,7 @@ namespace DLS.Graphics
 		static readonly MenuEntry[] entries_inputDevPin = new[]
 		{
 			new(Format("EDIT"), OpenPinEditMenu, CanEditCurrentChip),
+			rotateEntry,
 			new(Format("DELETE"), Delete, CanDelete),
 			dividerMenuEntry
 		}.Concat(pinColEntries).ToArray();
@@ -90,7 +98,8 @@ namespace DLS.Graphics
 		static readonly MenuEntry[] entries_outputDevPin =
 		{
 			entries_inputDevPin[0],
-			entries_inputDevPin[1]
+			rotateEntry,
+			entries_inputDevPin[2]
 		};
 
 		static readonly MenuEntry[] entries_wire =
@@ -137,7 +146,17 @@ namespace DLS.Graphics
 				HandleOpenMenuInput();
 
 				// Draw
-				if (IsOpen) DrawContextMenu(activeContextMenuEntries);
+				if (IsOpen)
+				{
+					if (Project.ActiveProject != null && Project.ActiveProject.description.Prefs_UseRadialMenu)
+					{
+						DrawRadialMenu(activeContextMenuEntries);
+					}
+					else
+					{
+						DrawContextMenu(activeContextMenuEntries);
+					}
+				}
 
 				// Close menu input
 				if (InputHelper.IsMouseDownThisFrame(MouseButton.Left) || KeyboardShortcuts.CancelShortcutTriggered)
@@ -159,6 +178,8 @@ namespace DLS.Graphics
 				bool openDevPinContextMenu = (hoverElement is PinInstance pin && pin.parent is DevPinInstance) || hoverElement is DevPinInstance;
 				bool openWireContextMenu = hoverElement is WireInstance;
 				bool openSubchipOutputPinContextMenu = hoverElement is PinInstance pin2 && pin2.parent is SubChipInstance && pin2.IsSourcePin && !pin2.IsBusPin;
+
+				//Debug.Log($"[ContextMenu] Right Click. HoverElement: {hoverElement?.GetType().Name ?? "null"}. MouseIsOverUI: {InteractionState.MouseIsOverUI}. Pos: {InputHelper.MousePos}");
 
 				if (openSubChipContextMenu || openDevPinContextMenu || openWireContextMenu || openSubchipOutputPinContextMenu)
 				{
@@ -187,7 +208,11 @@ namespace DLS.Graphics
 							else activeContextMenuEntries = entries_builtinSubchip;
 						}
 
-						Project.ActiveProject.controller.Select(interactionContext as IMoveable, false);
+						// If element not already selected, clear selection and select it
+						if (!subChip.IsSelected)
+						{
+							Project.ActiveProject.controller.Select(interactionContext as IMoveable, false);
+						}
 					}
 					else if (openDevPinContextMenu)
 					{
@@ -196,7 +221,12 @@ namespace DLS.Graphics
 						PinInstance activePin = (PinInstance)interactionContext;
 						headerName = CreatePinHeaderName(activePin.Name);
 						interactionContextName = activePin.Name;
-						Project.ActiveProject.controller.Select(activePin.parent, false);
+						
+						if (!activePin.parent.IsSelected)
+						{
+							Project.ActiveProject.controller.Select(activePin.parent, false);
+						}
+						
 						activeContextMenuEntries = activePin.IsSourcePin ? entries_inputDevPin : entries_outputDevPin;
 					}
 					else if (openWireContextMenu)
@@ -260,6 +290,62 @@ namespace DLS.Graphics
 			mouseOpenMenuPos = UI.ScreenToUISpace(InputHelper.MousePos);
 			contextMenuHeader = header.PadRight(pad);
 			IsOpen = true;
+		}
+
+		static void DrawRadialMenu(MenuEntry[] menuEntries)
+		{
+			Draw.StartLayer(Vector2.zero, 1, true);
+
+			ButtonTheme theme = DrawSettings.ActiveUITheme.MenuPopupButtonTheme;
+			ButtonTheme headerTheme = DrawSettings.ActiveUITheme.MenuPopupButtonTheme;
+			headerTheme.buttonCols.inactive = ColHelper.MakeCol(0.18f);
+			headerTheme.textCols.inactive = Color.white;
+
+			Vector2 pos = mouseOpenMenuPos;
+			float radius = 4f;
+
+			// Draw header in center
+			float headerWidth = Draw.CalculateTextBoundsSize(contextMenuHeader, theme.fontSize, theme.font).x + 1;
+			Vector2 headerSize = new(headerWidth, 2);
+			UI.Button(contextMenuHeader, headerTheme, pos, headerSize, false, false, false, Anchor.Centre, true, 0f);
+
+			// Count valid entries
+			int validEntriesCount = 0;
+			for (int i = 0; i < menuEntries.Length; i++)
+			{
+				if (menuEntries[i].Text != menuDividerString) validEntriesCount++;
+			}
+
+			if (validEntriesCount == 0) return;
+
+			float angleStep = 360f / validEntriesCount;
+			int currentIndex = 0;
+
+			using (UI.BeginBoundsScope(true))
+			{
+				for (int i = 0; i < menuEntries.Length; i++)
+				{
+					MenuEntry entry = menuEntries[i];
+					if (entry.Text == menuDividerString) continue;
+
+					float angle = currentIndex * angleStep - 90f; // Start at top
+					float rad = angle * Mathf.Deg2Rad;
+					Vector2 offset = new Vector2(Mathf.Cos(rad), -Mathf.Sin(rad)) * radius; // UI Y is down
+					Vector2 buttonPos = pos + offset;
+
+					float buttonWidth = Draw.CalculateTextBoundsSize(entry.Text.Trim(), theme.fontSize, theme.font).x + 1;
+					Vector2 buttonSize = new(Mathf.Max(buttonWidth, 2f), 2);
+
+					if (UI.Button(entry.Text.Trim(), theme, buttonPos, buttonSize, entry.IsEnabled(), false, false, Anchor.Centre, true, 0f))
+					{
+						entry.OnPress();
+					}
+
+					currentIndex++;
+				}
+			}
+
+			wasMouseOverMenu = UI.MouseInsideBounds(UI.GetCurrentBoundsScope());
 		}
 
 
@@ -366,6 +452,22 @@ namespace DLS.Graphics
 				Project.ActiveProject.NotifyLEDColourChanged(subchip, (uint)col);
 			}
 			
+		}
+
+		static bool CanRotate() => Project.ActiveProject.CanEditViewedChip;
+
+		static void Rotate()
+		{
+			if (interactionContext is IMoveable moveable)
+			{
+				moveable.Rotation = (moveable.Rotation + 1) % 4;
+				Seb.Helpers.Haptics.LightClick(Project.ActiveProject.description.Prefs_HapticFeedback);
+			}
+			else if (interactionContext is PinInstance pin)
+			{
+				pin.parent.Rotation = (pin.parent.Rotation + 1) % 4;
+				Seb.Helpers.Haptics.LightClick(Project.ActiveProject.description.Prefs_HapticFeedback);
+			}
 		}
 
 		static void OpenChipLabelPopup()
