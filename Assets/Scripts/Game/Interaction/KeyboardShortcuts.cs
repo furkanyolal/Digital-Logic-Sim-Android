@@ -1,3 +1,4 @@
+using DLS.Graphics;
 using Seb.Helpers;
 using UnityEngine;
 
@@ -24,15 +25,15 @@ namespace DLS.Game
 		public static bool DuplicateShortcutTriggered => MultiModeHeld && InputHelper.IsKeyDownThisFrame(KeyCode.D);
 		public static bool ToggleGridShortcutTriggered => CtrlShortcutTriggered(KeyCode.G);
 		public static bool ResetCameraShortcutTriggered => CtrlShortcutTriggered(KeyCode.R);
-		public static bool UndoShortcutTriggered => CtrlShortcutTriggered(KeyCode.Z);
-		public static bool RedoShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.Z);
+		public static bool UndoShortcutTriggered => CtrlShortcutTriggered(KeyCode.Z) || AndroidToolbar.UndoPressed || InputHelper.TwoFingerDoubleTapThisFrame;
+		public static bool RedoShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.Z) || AndroidToolbar.RedoPressed || InputHelper.ThreeFingerDoubleTapThisFrame;
 
 		// ---- Single key shortcuts ----
-		public static bool CancelShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Escape);
-		public static bool ConfirmShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Return) || InputHelper.IsKeyDownThisFrame(KeyCode.KeypadEnter);
-		public static bool DeleteShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Backspace) || InputHelper.IsKeyDownThisFrame(KeyCode.Delete);
-		public static bool SimNextStepShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Space) && !InputHelper.CtrlIsHeld;
-		public static bool SimPauseToggleShortcutTriggered => CtrlShortcutTriggered(KeyCode.Space);
+		public static bool CancelShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Escape) || AndroidToolbar.CancelPressed;
+		public static bool ConfirmShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Return) || InputHelper.IsKeyDownThisFrame(KeyCode.KeypadEnter) || AndroidToolbar.ConfirmPressed;
+		public static bool DeleteShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Backspace) || InputHelper.IsKeyDownThisFrame(KeyCode.Delete) || AndroidToolbar.DeletePressed;
+		public static bool SimNextStepShortcutTriggered => (InputHelper.IsKeyDownThisFrame(KeyCode.Space) && !InputHelper.CtrlIsHeld) || AndroidToolbar.StepPressed;
+		public static bool SimPauseToggleShortcutTriggered => CtrlShortcutTriggered(KeyCode.Space) || AndroidToolbar.PausePressed;
 
 		// ---- Dev shortcuts ----
 		public static bool OpenSaveDataFolderShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.O) && InputHelper.CtrlIsHeld && InputHelper.ShiftIsHeld && InputHelper.AltIsHeld;

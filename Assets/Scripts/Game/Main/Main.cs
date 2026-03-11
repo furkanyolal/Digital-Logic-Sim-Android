@@ -5,6 +5,7 @@ using System.Linq;
 using DLS.Description;
 using DLS.Graphics;
 using DLS.SaveSystem;
+using Seb.Helpers;
 using UnityEngine;
 
 namespace DLS.Game
@@ -26,10 +27,42 @@ namespace DLS.Game
 			SavePaths.EnsureDirectoryExists(SavePaths.ProjectsPath);
 			SaveAndApplyAppSettings(Loader.LoadAppSettings());
 			Main.audioState = audioState;
+
+			// Unity defaults to 30 FPS on mobile — set to 60 for smoother interaction
+			if (Application.platform == RuntimePlatform.Android)
+			{
+				Application.targetFrameRate = 60;
+				QualitySettings.vSyncCount = 0; // Must be 0 for targetFrameRate to take effect
+			}
+			Seb.Helpers.Haptics.Init();
 		}
+
+		static float lastInteractionTime;
+		const float activeFramerateTimeout = 2.0f;
 
 		public static void Update()
 		{
+			InputHelper.UpdatePerFrame();
+
+			if (InputHelper.AnyKeyOrMouseHeldThisFrame || InputHelper.AnyKeyOrMouseDownThisFrame || Seb.Helpers.InputHandling.TouchInputSource.TwoFingerDoubleTapThisFrame || Seb.Helpers.InputHandling.TouchInputSource.ThreeFingerDoubleTapThisFrame)
+			{
+				lastInteractionTime = Time.time;
+			}
+
+			// Throttle framerate on Android to save battery when idle
+			if (Application.platform == RuntimePlatform.Android)
+			{
+				bool isSimRunning = ActiveProject != null && !ActiveProject.simPaused;
+				if (Time.time - lastInteractionTime < activeFramerateTimeout || isSimRunning)
+				{
+					if (Application.targetFrameRate != 60) Application.targetFrameRate = 60;
+				}
+				else
+				{
+					if (Application.targetFrameRate != 30) Application.targetFrameRate = 30;
+				}
+			}
+
 			if (UIDrawer.ActiveMenu != UIDrawer.MenuType.MainMenu)
 			{
 				CameraController.Update();
@@ -50,10 +83,15 @@ namespace DLS.Game
 			// Save new settings
 			ActiveAppSettings = newSettings;
 			Saver.SaveAppSettings(newSettings);
-			// Apply settings to app
-			int width = newSettings.fullscreenMode is FullScreenMode.Windowed ? newSettings.ResolutionX : FullScreenResolution.x;
-			int height = newSettings.fullscreenMode is FullScreenMode.Windowed ? newSettings.ResolutionY : FullScreenResolution.y;
-			Screen.SetResolution(width, height, newSettings.fullscreenMode);
+
+			// Apply settings to app (skip resolution/fullscreen on Android — OS manages display)
+			if (Application.platform != RuntimePlatform.Android)
+			{
+				int width = newSettings.fullscreenMode is FullScreenMode.Windowed ? newSettings.ResolutionX : FullScreenResolution.x;
+				int height = newSettings.fullscreenMode is FullScreenMode.Windowed ? newSettings.ResolutionY : FullScreenResolution.y;
+				Screen.SetResolution(width, height, newSettings.fullscreenMode);
+			}
+
 			QualitySettings.vSyncCount = newSettings.VSyncEnabled ? 1 : 0;
 		}
 
@@ -68,6 +106,7 @@ namespace DLS.Game
 			else ActiveProject = CreateProject(projectName);
 
 			ActiveProject.LoadDevChipOrCreateNewIfDoesntExist(startupChipName);
+			ActiveProject.description.Prefs_SimPaused = false;
 			ActiveProject.StartSimulation();
 			ActiveProject.audioState = audioState;
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
@@ -86,6 +125,8 @@ namespace DLS.Game
 				Prefs_SimTargetStepsPerSecond = 1000,
 				Prefs_SimStepsPerClockTick = 250,
 				Prefs_SimPaused = false,
+				Prefs_UseRadialMenu = true,
+				Prefs_HapticFeedback = true,
 				AllCustomChipNames = Array.Empty<string>(),
 				StarredList = BuiltinCollectionCreator.GetDefaultStarredList().ToList(),
 				ChipCollections = new List<ChipCollection>(BuiltinCollectionCreator.CreateDefaultChipCollections())
@@ -97,6 +138,13 @@ namespace DLS.Game
 
 		public static void OpenSaveDataFolderInFileBrowser()
 		{
+			// Not supported on Android — no desktop file browser
+			if (Application.platform == RuntimePlatform.Android)
+			{
+				Debug.Log("Save data path: " + SavePaths.AllData);
+				return;
+			}
+
 			try
 			{
 				string path = SavePaths.AllData;

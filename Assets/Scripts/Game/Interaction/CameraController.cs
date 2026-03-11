@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using DLS.Graphics;
 using Seb.Helpers;
+using Seb.Helpers.InputHandling;
 using Seb.Types;
 using Seb.Vis.UI;
 using UnityEngine;
@@ -67,8 +68,18 @@ namespace DLS.Game
 				Vector2 mouseScreenPos = InputHelper.MousePos;
 				Vector2 mouseWorldPos = camera.ScreenToWorldPoint(mouseScreenPos);
 
-				HandlePanInput(mouseScreenPos, mouseWorldPos);
-				HandleZoomInput(mouseScreenPos);
+				// Touch input (Android)
+				if (InputHelper.IsTouchPlatform)
+				{
+					HandleTouchPanInput();
+					HandlePinchZoomInput();
+				}
+				// Mouse input (Desktop)
+				else
+				{
+					HandlePanInput(mouseScreenPos, mouseWorldPos);
+					HandleZoomInput(mouseScreenPos);
+				}
 			}
 
 			UpdateCameraState();
@@ -159,6 +170,50 @@ namespace DLS.Game
 
 		// shift scroll reserved for adjusting spacing when placing multiple elements
 		static bool CanMiddleMouseZoom() => !(InputHelper.ShiftIsHeld && Project.ActiveProject.controller.IsPlacingElements) && InputHelper.IsMouseInGameWindow();
+
+		// ----------- Touch gesture handlers (Android) -----------
+
+		static void HandleTouchPanInput()
+		{
+			if (!CanMove) return;
+			TouchInputSource touch = InputHelper.TouchSource;
+			if (touch == null || !touch.IsTwoFingerDragging) return;
+
+			// Convert screen-space drag delta to world-space
+			Vector2 dragDelta = touch.TwoFingerDragDelta;
+			float worldPerPixel = camera.orthographicSize * 2f / Screen.height;
+			Vector2 worldDelta = dragDelta * worldPerPixel;
+			MovePosition(-worldDelta);
+			ContextMenu.CloseContextMenu();
+		}
+
+		static void HandlePinchZoomInput()
+		{
+			if (!CanZoom) return;
+			TouchInputSource touch = InputHelper.TouchSource;
+			if (touch == null || !touch.IsPinching) return;
+
+			float pinchDelta = touch.PinchDelta;
+			if (Mathf.Abs(pinchDelta) < 0.01f) return;
+
+			// Store world position of the pinch midpoint before zooming
+			Vector2 pinchScreenPos = touch.MousePosition;
+			Vector2 mouseWorldPosBeforeZoom = camera.ScreenToWorldPoint(pinchScreenPos);
+
+			// Calculate target zoom
+			float zoomFactor = pinchDelta / Screen.height * activeView.OrthoSize * 4f;
+			float targetZoom = activeView.OrthoSize - zoomFactor;
+			SetZoom(targetZoom);
+
+			// Adjust cam pos to centre zoom on the pinch midpoint
+			if (zoomToMouse && CanMove && !isDragZoomingCamera)
+			{
+				Vector2 mouseWorldPosAfterZoom = camera.ScreenToWorldPoint(pinchScreenPos);
+				MovePosition(mouseWorldPosBeforeZoom - mouseWorldPosAfterZoom);
+			}
+
+			ContextMenu.CloseContextMenu();
+		}
 
 		static void MovePosition(Vector2 delta)
 		{

@@ -79,6 +79,7 @@ namespace DLS.Game
 
 		void Update()
 		{
+			InputHelper.UpdatePerFrame();
 			noteFreq = SimAudio.CalculateFrequency(noteIndex / (double)numNoteDivisions);
 			refNoteFreq = SimAudio.CalculateFrequency(refIndex / (double)numNoteDivisions);
 			if (Application.isEditor) EditorDebugUpdate();

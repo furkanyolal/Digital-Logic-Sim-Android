@@ -4,6 +4,7 @@ using DLS.Description;
 using DLS.Graphics;
 using DLS.SaveSystem;
 using Seb.Helpers;
+using Seb.Helpers.InputHandling;
 using UnityEngine;
 
 namespace DLS.Game
@@ -24,6 +25,13 @@ namespace DLS.Game
 		public Vector2 SelectionBoxStartPos;
 		StraightLineMoveState straightLineMoveState;
 		bool hasExittedMultiModeSincePlacementStart;
+
+		// ---- Touch-specific state ----
+		float lastTapTime; // for double-tap detection
+		const float DoubleTapThreshold = 0.3f; // seconds
+		float touchWireCooldownUntil; // prevents immediate new wire start after completing one on touch
+		Vector2 rightMouseDownPos;
+		bool rightClickConsumedByMove;
 
 		// ---- Wire edit state ----
 		public WireInstance wireToEdit;
@@ -116,7 +124,14 @@ namespace DLS.Game
 		
 		public void Delete(IMoveable element)
 		{
-			DeleteElements(new List<IMoveable>(new[] { element }));
+			if (element.IsSelected)
+			{
+				DeleteElements(new List<IMoveable>(SelectedElements));
+			}
+			else
+			{
+				DeleteElements(new List<IMoveable>(new[] { element }));
+			}
 		}
 
 		void DeleteElements(List<IMoveable> elements, bool clearSelection = true)
@@ -179,7 +194,11 @@ namespace DLS.Game
 
 		public void ToggleDevPinState(DevPinInstance devPin, int bitIndex)
 		{
-			if (HasControl) devPin.ToggleState(bitIndex);
+			if (HasControl)
+			{
+				devPin.ToggleState(bitIndex);
+				Haptics.LightClick(project.description.Prefs_HapticFeedback);
+			}
 		}
 
 		void HandleKeyboardInput()
@@ -242,6 +261,7 @@ namespace DLS.Game
 			if (InputHelper.IsMouseDownThisFrame(MouseButton.Left)) HandleLeftMouseDown();
 			if (InputHelper.IsMouseUpThisFrame(MouseButton.Left)) HandleLeftMouseUp();
 			if (InputHelper.IsMouseDownThisFrame(MouseButton.Right)) HandleRightMouseDown();
+			if (InputHelper.IsMouseUpThisFrame(MouseButton.Right)) HandleRightMouseUp();
 
 			// Shift + scroll to increase vertical spacing between elements when placing multiple at a time
 			// (disabled if elements were duplicated since then we want to preserve relative positions)
@@ -432,19 +452,100 @@ namespace DLS.Game
 
 		void HandleRightMouseDown()
 		{
-			// Cancel placement by right-clicking
-			if (IsPlacingOrMovingElementOrCreatingWire)
+			// On touch platforms, the screen is only drawn when touched, so ElementUnderMouse
+			// on the first frame of a new touch belongs to the PREVIOUS interactions.
+			// Validate that the ElementUnderMouse is actually at the new touch position.
+			if (InputHelper.IsTouchPlatform && InteractionState.ElementUnderMouse != null)
 			{
-				CancelEverything();
-				InputHelper.ConsumeMouseButtonDownEvent(MouseButton.Right);
+				bool isStale = true;
+				Vector2 mousePos = InputHelper.MousePosWorld;
+
+				if (InteractionState.ElementUnderMouse is PinInstance pin)
+				{
+					float maxDst = DrawSettings.PinRadius + 0.15f;
+					if ((pin.GetWorldPos() - mousePos).sqrMagnitude < maxDst * maxDst) isStale = false;
+				}
+				else if (InteractionState.ElementUnderMouse is IMoveable element)
+				{
+					// Moveable element bounds (like chips) can be huge, PointInBounds is exact
+					if (element.BoundingBox.PointInBounds(mousePos)) isStale = false;
+				}
+				else if (InteractionState.ElementUnderMouse is WireInstance wire)
+				{
+					(Vector2 closestPoint, _) = WireLayoutHelper.GetClosestPointOnWire(wire, mousePos);
+					float hitRadiusSq = 0.35f * 0.35f;
+					if ((closestPoint - mousePos).sqrMagnitude < hitRadiusSq) isStale = false;
+				}
+
+				if (isStale) InteractionState.ClearFrame();
 			}
 
-			IsCreatingSelectionBox = false;
-			ClearSelection();
+			// Record start position for touch platforms to distinguish between hold-to-straighten and click-to-cancel
+			if (InputHelper.IsTouchPlatform)
+			{
+				rightMouseDownPos = InputHelper.MousePosWorld;
+				rightClickConsumedByMove = false;
+			}
+
+			// Cancel placement by right-clicking (PC only, touch handled in Up)
+			if (!InputHelper.IsTouchPlatform && IsPlacingOrMovingElementOrCreatingWire)
+			{
+				CancelEverything();
+				// Only consume if not over an element, so ContextMenu can open if we are over one
+				if (InteractionState.ElementUnderMouse == null)
+				{
+					InputHelper.ConsumeMouseButtonDownEvent(MouseButton.Right);
+				}
+			}
+		}
+
+		void HandleRightMouseUp()
+		{
+			if (InputHelper.IsTouchPlatform && IsPlacingOrMovingElementOrCreatingWire)
+			{
+				// If the button was just clicked (not held and moved), cancel the operation
+				if (!rightClickConsumedByMove)
+				{
+					CancelEverything();
+					if (InteractionState.ElementUnderMouse == null)
+					{
+						InputHelper.ConsumeMouseButtonDownEvent(MouseButton.Right);
+					}
+				}
+				rightClickConsumedByMove = false;
+			}
 		}
 
 		void HandleLeftMouseDown()
 		{
+			// On touch platforms, the screen is only drawn when touched, so ElementUnderMouse
+			// on the first frame of a new touch belongs to the PREVIOUS interactions.
+			// Validate that the ElementUnderMouse is actually at the new touch position.
+			if (InputHelper.IsTouchPlatform && InteractionState.ElementUnderMouse != null)
+			{
+				bool isStale = true;
+				Vector2 mousePos = InputHelper.MousePosWorld;
+
+				if (InteractionState.ElementUnderMouse is PinInstance pin)
+				{
+					float maxDst = DrawSettings.PinRadius + 0.15f;
+					if ((pin.GetWorldPos() - mousePos).sqrMagnitude < maxDst * maxDst) isStale = false;
+				}
+				else if (InteractionState.ElementUnderMouse is IMoveable element)
+				{
+					// Moveable element bounds (like chips) can be huge, PointInBounds is exact
+					if (element.BoundingBox.PointInBounds(mousePos)) isStale = false;
+				}
+				else if (InteractionState.ElementUnderMouse is WireInstance wire)
+				{
+					(Vector2 closestPoint, _) = WireLayoutHelper.GetClosestPointOnWire(wire, mousePos);
+					float hitRadiusSq = 0.35f * 0.35f;
+					if ((closestPoint - mousePos).sqrMagnitude < hitRadiusSq) isStale = false;
+				}
+
+				if (isStale) InteractionState.ClearFrame();
+			}
+
 			SelectionBoxStartPos = InputHelper.MousePosWorld;
 			straightLineMoveState = StraightLineMoveState.None;
 
@@ -458,9 +559,26 @@ namespace DLS.Game
 				// Place wire
 				if (IsCreatingWire) //
 				{
+					// On touch: double-tap in empty space cancels wire creation
+					if (InputHelper.IsTouchPlatform)
+					{
+						float now = Time.time;
+						bool isDoubleTap = (now - lastTapTime) < DoubleTapThreshold;
+						lastTapTime = now;
+
+						if (isDoubleTap)
+						{
+							CancelEverything();
+							return;
+						}
+					}
+
 					if (TryFinishPlacingWire())
 					{
 						CancelPlacingItems();
+						// On touch: set cooldown to prevent immediately starting a new wire from the endpoint
+						if (InputHelper.IsTouchPlatform)
+							touchWireCooldownUntil = Time.time + 0.5f;
 					}
 					else if (CanAddWirePoint())
 					{
@@ -478,14 +596,40 @@ namespace DLS.Game
 				// Mouse down on pin: start placing wire
 				if (InteractionState.ElementUnderMouse is PinInstance pin && HasControl)
 				{
-					WireInstance.ConnectionInfo connectionInfo = new() { pin = pin };
-					StartPlacingWire(connectionInfo);
+					// On touch: skip if we just completed a wire (cooldown prevents accidental re-start)
+					if (InputHelper.IsTouchPlatform && Time.time < touchWireCooldownUntil) { }
+					else
+					{
+						WireInstance.ConnectionInfo connectionInfo = new() { pin = pin };
+						StartPlacingWire(connectionInfo);
+					}
 				}
 				// Mouse down on wire
 				else if (InteractionState.ElementUnderMouse is WireInstance wire && HasControl)
 				{
+					// Check if we clicked directly on an existing point of this wire (to allow instant dragging)
+					int clickedPointIndex = -1;
+					float hitRadius = InputHelper.IsTouchPlatform ? 0.35f : 0.12f;
+					float hitRadiusSq = hitRadius * hitRadius;
+					int startIndex = wire.SourceConnectionInfo.IsConnectedAtWire ? 0 : 1;
+					int endIndex = wire.TargetConnectionInfo.IsConnectedAtWire ? wire.WirePointCount - 1 : wire.WirePointCount - 2;
+
+					for (int i = startIndex; i <= endIndex; i++)
+					{
+						if ((InputHelper.MousePosWorld - wire.GetWirePoint(i)).sqrMagnitude < hitRadiusSq)
+						{
+							clickedPointIndex = i;
+							break;
+						}
+					}
+
+					if (clickedPointIndex != -1)
+					{
+						if (wireToEdit != wire) EnterWireEditMode(wire);
+						wireEditPointIndex = clickedPointIndex;
+					}
 					// Insert a point on the currently edited wire
-					if (wire == wireToEdit)
+					else if (wire == wireToEdit)
 					{
 						if (wireEditCanInsertPoint)
 						{
@@ -494,7 +638,7 @@ namespace DLS.Game
 							wireEditPointIndex = segmentIndex + 1;
 						}
 					}
-					// Start placing a new wire from this point on the selected wire
+					// Start placing a new wire from this point on the unselected wire
 					else
 					{
 						WireInstance.ConnectionInfo connectionInfo = CreateWireToWireConnectionInfo(wire, wire.SourcePin);
@@ -511,8 +655,60 @@ namespace DLS.Game
 				// Mouse down over nothing: clear selection
 				else if (InteractionState.ElementUnderMouse == null && !IsPlacingElementOrCreatingWire)
 				{
-					if (!KeyboardShortcuts.MultiModeHeld) ClearSelection(); // don't clear if in 'multi-mode' (to allow box selecting multiple times)
-					IsCreatingSelectionBox = true;
+					// On touch platforms, ElementUnderMouse may be null because the touch position
+					// appeared for the first time this frame (previous frame's draw had no touch).
+					// Check for pins first (to start wire creation), then moveable elements (to drag).
+					if (InputHelper.IsTouchPlatform)
+					{
+						// Check for pin first — allows dragging directly from a pin to start a wire
+						PinInstance touchPin = FindPinAtPosition(InputHelper.MousePosWorld);
+						if (touchPin != null && HasControl)
+						{
+							if (Time.time >= touchWireCooldownUntil)
+							{
+								WireInstance.ConnectionInfo connectionInfo = new() { pin = touchPin };
+								StartPlacingWire(connectionInfo);
+							}
+						}
+						else
+						{
+							IMoveable touchedElement = FindMoveableElementAtPosition(InputHelper.MousePosWorld);
+							if (touchedElement != null)
+							{
+								bool addToSelection = KeyboardShortcuts.MultiModeHeld;
+								Select(touchedElement, addToSelection);
+								StartMovingSelectedItems();
+							}
+							else
+							{
+								// If we touched the state indicator with a finger, don't start a selection box
+								// This allows the finger touch to pass through to the toggle logic
+								bool overStateIndicator = false;
+								if (InputHelper.CurrentTouchType == InputTouchType.Direct)
+								{
+									foreach (IMoveable e in ActiveDevChip.Elements)
+									{
+										if (e is DevPinInstance devPin && devPin.PointIsInStateIndicatorBounds(InputHelper.MousePosWorld))
+										{
+											overStateIndicator = true;
+											break;
+										}
+									}
+								}
+
+								if (!overStateIndicator)
+								{
+									if (!KeyboardShortcuts.MultiModeHeld) ClearSelection();
+									IsCreatingSelectionBox = true;
+								}
+							}
+						}
+					}
+					else
+					{
+						if (!KeyboardShortcuts.MultiModeHeld) ClearSelection(); // don't clear if in 'multi-mode' (to allow box selecting multiple times)
+						IsCreatingSelectionBox = true;
+					}
 				}
 
 				if (wireToEdit != null && wireEditPointIndex != -1)
@@ -690,6 +886,15 @@ namespace DLS.Game
 			Vector2 mousePos = InputHelper.MousePosWorld;
 			bool snapToGrid = project.ShouldSnapToGrid;
 
+			// Track if S-Pen button move threshold has been exceeded
+			if (InputHelper.IsTouchPlatform && InputHelper.IsMouseHeld(MouseButton.Right))
+			{
+				if (Vector2.Distance(mousePos, rightMouseDownPos) > 0.05f)
+				{
+					rightClickConsumedByMove = true;
+				}
+			}
+
 			if (IsCreatingWire)
 			{
 				WireToPlace.SetLastWirePoint(mousePos);
@@ -815,7 +1020,19 @@ namespace DLS.Game
 
 		bool TryFinishPlacingWire()
 		{
-			if (InteractionState.ElementUnderMouse is PinInstance pin)
+			// First try the normal path (works on desktop where ElementUnderMouse is set)
+			IInteractable elementUnderMouse = InteractionState.ElementUnderMouse;
+
+			// On touch platforms, ElementUnderMouse may be null (touch appeared this frame)
+			// Do an immediate hit test for pins/wires at the touch position
+			if (elementUnderMouse == null && InputHelper.IsTouchPlatform)
+			{
+				Vector2 worldPos = InputHelper.MousePosWorld;
+				PinInstance touchPin = FindPinAtPosition(worldPos);
+				if (touchPin != null) elementUnderMouse = touchPin;
+			}
+
+			if (elementUnderMouse is PinInstance pin)
 			{
 				if (CanCompleteWireConnection(pin))
 				{
@@ -824,7 +1041,7 @@ namespace DLS.Game
 					return true;
 				}
 			}
-			else if (InteractionState.ElementUnderMouse is WireInstance connectionWire)
+			else if (elementUnderMouse is WireInstance connectionWire)
 			{
 				if (CanCompleteWireConnection(connectionWire, out PinInstance endPin))
 				{
@@ -1061,6 +1278,68 @@ namespace DLS.Game
 			None,
 			Horizontal,
 			Vertical
+		}
+
+		/// <summary>
+		/// Quick hit test for touch platforms: checks if a world-space position intersects
+		/// any moveable element (SubChipInstance or DevPinInstance handle).
+		/// Returns the first match, or null.
+		/// </summary>
+		IMoveable FindMoveableElementAtPosition(Vector2 worldPos)
+		{
+			foreach (IMoveable element in ActiveDevChip.Elements)
+			{
+				if (element is SubChipInstance subchip)
+				{
+					if (Maths.PointInBox2D(worldPos, subchip.Position, subchip.Description.Size))
+						return subchip;
+				}
+				else if (element is DevPinInstance devPin)
+				{
+					// If using stylus (S-Pen), we can drag from anywhere (handle or state display)
+					// If using finger touch, we only drag from the handle (state display is for toggling)
+					bool isStylus = InputHelper.CurrentTouchType == InputTouchType.Stylus;
+					if (isStylus)
+					{
+						if (devPin.PointIsInInteractionBounds(worldPos)) return devPin;
+					}
+					else
+					{
+						if (devPin.PointIsInHandleBounds(worldPos)) return devPin;
+					}
+				}
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Touch-aware pin hit test: finds the nearest pin at a world position.
+		/// Checks both subchip pins and dev pins.
+		/// </summary>
+		PinInstance FindPinAtPosition(Vector2 worldPos)
+		{
+			const float pinHitRadius = DrawSettings.PinRadius + 0.04f; // slightly larger than visual for easier touch targeting
+			float closestSqr = pinHitRadius * pinHitRadius;
+			PinInstance closest = null;
+
+			foreach (IMoveable element in ActiveDevChip.Elements)
+			{
+				PinInstance[] pins = null;
+				if (element is SubChipInstance subchip) pins = subchip.AllPins;
+				else if (element is DevPinInstance devPin) pins = new[] { devPin.Pin };
+
+				if (pins == null) continue;
+				foreach (PinInstance pin in pins)
+				{
+					float sqrDst = (pin.GetWorldPos() - worldPos).sqrMagnitude;
+					if (sqrDst < closestSqr)
+					{
+						closestSqr = sqrDst;
+						closest = pin;
+					}
+				}
+			}
+			return closest;
 		}
 	}
 }

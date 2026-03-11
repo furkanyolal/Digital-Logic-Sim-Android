@@ -67,12 +67,15 @@ namespace DLS.Game
 		public int stepsPerClockTransition => description.Prefs_SimStepsPerClockTick;
 		public bool simPaused => description.Prefs_SimPaused;
 		public double simAvgTicksPerSec { get; private set; }
+		public double simThreadBusyRatio { get; private set; }
+		public bool showDebugOverlay;
 		public SimChip rootSimChip => editModeChip.SimChip;
 
 		public Project(ProjectDescription description, ChipLibrary chipLibrary)
 		{
 			ActiveProject = this;
 			this.description = description;
+			this.description.Prefs_SimPaused = false;
 			this.chipLibrary = chipLibrary;
 			SearchPopup.ClearRecentChips();
 		}
@@ -108,6 +111,7 @@ namespace DLS.Game
 				return;
 			}
 
+			description.Prefs_SimPaused = false;
 			simThreadActive = true;
 			Thread simThread = new(SimThread)
 			{
@@ -150,18 +154,28 @@ namespace DLS.Game
 
 		void HandleProjectInput()
 		{
+			// Step to next simulation frame when paused
+			if (simPaused && KeyboardShortcuts.SimNextStepShortcutTriggered)
+			{
+				advanceSingleSimStep = true;
+			}
+
+			if (KeyboardShortcuts.SimPauseToggleShortcutTriggered)
+			{
+				description.Prefs_SimPaused = !description.Prefs_SimPaused;
+			}
+
 			if (UIDrawer.ActiveMenu is UIDrawer.MenuType.None)
 			{
-				// Step to next simulation frame when paused
-				if (simPaused && KeyboardShortcuts.SimNextStepShortcutTriggered)
-				{
-					advanceSingleSimStep = true;
-				}
-
 				if (InputHelper.IsKeyDownThisFrame(KeyCode.Tab))
 				{
 					PinNameDisplayIsTabToggledOn = !PinNameDisplayIsTabToggledOn;
 				}
+			}
+
+			if (InputHelper.CtrlIsHeld && InputHelper.AltIsHeld && InputHelper.IsKeyDownThisFrame(KeyCode.D))
+			{
+				showDebugOverlay = !showDebugOverlay;
 			}
 
 
@@ -479,7 +493,7 @@ namespace DLS.Game
 		}
 
 		public bool ShouldSnapToGrid => KeyboardShortcuts.SnapModeHeld || (description.Prefs_Snapping == 1 && ShowGrid) || description.Prefs_Snapping == 2;
-		public bool ForceStraightWires => KeyboardShortcuts.StraightLineModeHeld || (description.Prefs_StraightWires == 1 && ShowGrid) || description.Prefs_StraightWires == 2;
+		public bool ForceStraightWires => KeyboardShortcuts.StraightLineModeHeld || (InputHelper.IsTouchPlatform && InputHelper.IsMouseHeld(MouseButton.Right)) || (description.Prefs_StraightWires == 1 && ShowGrid) || description.Prefs_StraightWires == 2;
 
 		public void NotifyExit()
 		{
@@ -540,7 +554,10 @@ namespace DLS.Game
 				Simulator.stepsPerClockTransition = stepsPerClockTransition;
 				SimChip simChip = rootSimChip;
 				if (simChip == null) continue; // Could potentially be null for a frame when switching between chips
+				
+				long simStartTicks = stopwatch.ElapsedTicks;
 				Simulator.RunSimulationStep(simChip, inputPins, audioState.simAudio);
+				long simEndTicks = stopwatch.ElapsedTicks;
 
 				// ---- Wait some amount of time (if needed) to try to hit the target ticks per second ----
 				while (true)
@@ -550,9 +567,18 @@ namespace DLS.Game
 
 					if (waitMs <= 0) break;
 
-					// Wait some cycles before checking timer again (todo: better approach?)
-					Thread.SpinWait(10);
+					// Optimization: If we have a significant wait time, let the CPU rest (reduces heat)
+					if (waitMs > 2.0)
+					{
+						Thread.Sleep(1);
+					}
+					else
+					{
+						Thread.SpinWait(10);
+					}
 				}
+				long totalEndTicks = stopwatch.ElapsedTicks;
+				simThreadBusyRatio = (double)(simEndTicks - simStartTicks) / (totalEndTicks);
 
 				// ---- Update perf counter (measures average num ticks over last n seconds) ----
 				long elapsedMsTotal = stopwatchTotal.ElapsedMilliseconds;
