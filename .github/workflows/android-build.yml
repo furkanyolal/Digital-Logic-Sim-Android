@@ -49,8 +49,6 @@ jobs:
         with:
           targetPlatform: Android
           buildName: DigitalLogicSim
-          buildMethod: UnityEditor.BuildPlayerWindow+ProjectBuildTarget.Build
-          customParameters: -buildTarget Android -customBuildPath build/Android/DigitalLogicSim.apk
 
       # Upload the APK as an artifact for the workflow run
       - name: Upload APK Artifact
