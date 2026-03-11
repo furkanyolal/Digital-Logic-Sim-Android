@@ -2,6 +2,12 @@ using UnityEngine;
 
 namespace Seb.Helpers.InputHandling
 {
+	public enum InputTouchType
+	{
+		Direct,
+		Stylus
+	}
+
 	public interface IInputSource
 	{
 		public Vector2 MousePosition { get; }
@@ -11,6 +17,7 @@ namespace Seb.Helpers.InputHandling
 
 		public string InputString { get; }
 		public Vector2 MouseScrollDelta { get; }
+		public InputTouchType CurrentTouchType { get; }
 		public bool IsKeyDownThisFrame(KeyCode key);
 		public bool IsKeyUpThisFrame(KeyCode key);
 		public bool IsKeyHeld(KeyCode key);

@@ -2,6 +2,8 @@ using Seb.Helpers.InputHandling;
 using Seb.Types;
 using UnityEngine;
 
+// ReSharper disable MergeIntoPattern
+
 namespace Seb.Helpers
 {
 	public enum MouseButton
@@ -14,6 +16,13 @@ namespace Seb.Helpers
 	public static class InputHelper
 	{
 		public static IInputSource InputSource = new UnityInputSource();
+
+		public static bool IsTouchPlatform =>
+			Application.platform == RuntimePlatform.Android ||
+			Application.platform == RuntimePlatform.IPhonePlayer;
+
+		/// <summary>Returns the TouchInputSource if on a touch platform, null otherwise.</summary>
+		public static TouchInputSource TouchSource => InputSource as TouchInputSource;
 		static Camera _worldCam;
 		static Vector2 prevWorldMousePos;
 		static int prevWorldMouseFrame = -1;
@@ -25,6 +34,10 @@ namespace Seb.Helpers
 		public static bool AnyKeyOrMouseDownThisFrame => InputSource.AnyKeyOrMouseDownThisFrame;
 		public static bool AnyKeyOrMouseHeldThisFrame => InputSource.AnyKeyOrMouseHeldThisFrame;
 		public static Vector2 MouseScrollDelta => InputSource.MouseScrollDelta;
+		public static InputTouchType CurrentTouchType => InputSource.CurrentTouchType;
+		
+		public static bool TwoFingerDoubleTapThisFrame => InputSource is TouchInputSource t && TouchInputSource.TwoFingerDoubleTapThisFrame;
+		public static bool ThreeFingerDoubleTapThisFrame => InputSource is TouchInputSource t && TouchInputSource.ThreeFingerDoubleTapThisFrame;
 
 		public static Camera WorldCam
 		{
@@ -52,6 +65,12 @@ namespace Seb.Helpers
 		public static bool ShiftIsHeld => IsKeyHeld(KeyCode.LeftShift) || IsKeyHeld(KeyCode.RightShift);
 		public static bool CtrlIsHeld => IsKeyHeld(KeyCode.LeftControl) || IsKeyHeld(KeyCode.RightControl);
 		public static bool AltIsHeld => IsKeyHeld(KeyCode.LeftAlt) || IsKeyHeld(KeyCode.RightAlt);
+
+		/// <summary>Call once per frame (early) to refresh touch state on Android.</summary>
+		public static void UpdatePerFrame()
+		{
+			TouchSource?.UpdateTouchState();
+		}
 
 		public static bool IsKeyDownThisFrame(KeyCode key) => InputSource.IsKeyDownThisFrame(key);
 		public static bool IsKeyUpThisFrame(KeyCode key) => InputSource.IsKeyUpThisFrame(key);
@@ -177,7 +196,7 @@ namespace Seb.Helpers
 			leftMouseDownConsumeFrame = -1;
 			rightMouseDownConsumeFrame = -1;
 			middleMouseDownConsumeFrame = -1;
-			InputSource = new UnityInputSource();
+			InputSource = IsTouchPlatform ? new TouchInputSource() : new UnityInputSource();
 		}
 	}
 }

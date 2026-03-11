@@ -13,6 +13,7 @@ namespace Seb.Helpers.InputHandling
 		public bool AnyKeyOrMouseHeldThisFrame => Input.anyKey;
 		public string InputString => Input.inputString;
 		public Vector2 MouseScrollDelta => Input.mouseScrollDelta;
+		public InputTouchType CurrentTouchType => InputTouchType.Direct;
 		public bool IsMouseDownThisFrame(MouseButton button) => Input.GetMouseButtonDown((int)button);
 	}
 }

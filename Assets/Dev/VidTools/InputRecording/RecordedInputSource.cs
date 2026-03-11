@@ -29,6 +29,7 @@ namespace DLS.Dev.VidTools
 		public bool PlaybackComplete { get; private set; }
 		public float playbackTime { get; private set; }
 		public Vector2 MousePosition { get; private set; }
+		public InputTouchType CurrentTouchType => InputTouchType.Direct;
 
 		public bool IsKeyDownThisFrame(KeyCode key) => heldKeysThisFrame.Contains(key) && !heldKeysPrevFrame.Contains(key);
 
