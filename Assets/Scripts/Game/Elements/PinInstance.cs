@@ -38,7 +38,14 @@ namespace DLS.Game
 			PinState.SetAllDisconnected(ref State);
 		}
 
-		public Vector2 ForwardDir => faceRight ? Vector2.right : Vector2.left;
+		public Vector2 ForwardDir
+		{
+			get
+			{
+				Vector2 dir = faceRight ? Vector2.right : Vector2.left;
+				return RotateVector(dir, parent.Rotation);
+			}
+		}
 
 
 		public Vector2 GetWorldPos()
@@ -53,11 +60,23 @@ namespace DLS.Game
 					Vector2 chipPos = subchip.Position;
 
 					float xLocal = (chipSize.x / 2 + DrawSettings.ChipOutlineWidth / 2 - DrawSettings.SubChipPinInset) * (faceRight ? 1 : -1);
-					return chipPos + new Vector2(xLocal, LocalPosY);
+					Vector2 localPos = new Vector2(xLocal, LocalPosY);
+					return chipPos + RotateVector(localPos, subchip.Rotation);
 				}
 				default:
 					throw new Exception("Parent type not supported");
 			}
+		}
+
+		static Vector2 RotateVector(Vector2 v, int rotation)
+		{
+			return rotation switch
+			{
+				1 => new Vector2(-v.y, v.x),
+				2 => new Vector2(-v.x, -v.y),
+				3 => new Vector2(v.y, -v.x),
+				_ => v
+			};
 		}
 
 		public void SetBusFlip(bool flipped)

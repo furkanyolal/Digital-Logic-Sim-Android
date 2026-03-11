@@ -414,6 +414,7 @@ namespace DLS.Game
 				name,
 				id,
 				Vector2.zero,
+				0, // Default rotation
 				bitCount,
 				PinColour.Red,
 				PinValueDisplayMode.Off

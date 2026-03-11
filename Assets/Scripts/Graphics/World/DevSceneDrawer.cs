@@ -214,7 +214,14 @@ namespace DLS.Graphics
 			FontType font = FontBold;
 
 			Vector2 size = Draw.CalculateTextBoundsSize(text, FontSizePinLabel, font) + LabelBackgroundPadding;
-			Vector2 centre = chip.Position + Vector2.down * (chip.Size.y / 2 + offsetY);
+			
+			Vector2 dirDown = DevPinInstance.RotateVector(Vector2.down, chip.Rotation);
+			Vector2 centre = chip.Position + dirDown * (chip.Size.y / 2 + offsetY);
+			// For vertical rotations, we need to adjust the distance based on X size
+			if (chip.Rotation % 2 != 0)
+			{
+				centre = chip.Position + dirDown * (chip.Size.x / 2 + offsetY);
+			}
 
 			Draw.Quad(centre, size, ActiveTheme.PinLabelCol);
 			Draw.Text(font, text, FontSizePinLabel, centre, Anchor.TextFirstLineCentre, Color.white);
@@ -242,7 +249,9 @@ namespace DLS.Graphics
 			float centreX = pin.StateDisplayPosition.x;
 			Vector2 labelSize = new(pin.StateGridSize.x, 0.2f);
 
-			Vector2 labelCentre = new(centreX, parentBounds.Bottom + labelSize.y / 2 - offsetY);
+			Vector2 dirDown = DevPinInstance.RotateVector(Vector2.down, pin.Rotation);
+			float halfHeight = (pin.Rotation % 2 == 0) ? parentBounds.Height / 2 : parentBounds.Width / 2;
+			Vector2 labelCentre = pin.Position + dirDown * (halfHeight + offsetY + labelSize.y / 2);
 
 			Draw.Quad(labelCentre, labelSize, new Color(0, 0, 0, 0.17f));
 			Draw.Text(font, pin.decimalDisplayCharBuffer, charCount, FontSizePinLabel, labelCentre, Anchor.TextFirstLineCentre, Color.white);
@@ -262,6 +271,7 @@ namespace DLS.Graphics
 			ChipDescription desc = subchip.Description;
 			Color chipCol = desc.Colour;
 			Vector2 pos = subchip.Position;
+			int rotation = subchip.Rotation;
 			bool isKeyChip = subchip.ChipType == ChipType.Key;
 
 			if (isKeyChip)
@@ -292,11 +302,14 @@ namespace DLS.Graphics
 
 
 			// Draw outline and body
-			Draw.Quad(pos, desc.Size + Vector2.one * ChipOutlineWidth, outlineCol);
-			Draw.Quad(pos, desc.Size, chipCol);
+			Vector2 chipSize = subchip.Size;
+			if (rotation % 2 != 0) (chipSize.x, chipSize.y) = (chipSize.y, chipSize.x);
+
+			Draw.Quad(pos, chipSize + Vector2.one * ChipOutlineWidth, outlineCol);
+			Draw.Quad(pos, chipSize, chipCol);
 
 			// Mouse over detection
-			if (InputHelper.MouseInsideBounds_World(pos, desc.Size))
+			if (InputHelper.MouseInsideBounds_World(pos, chipSize))
 			{
 				// If mouse is over one of this chip's pins, then prioritize keeping the pin highlighted (so interaction is not too fiddly)
 				if (InteractionState.PinUnderMouse == null || InteractionState.PinUnderMouse.parent != subchip)
@@ -310,24 +323,24 @@ namespace DLS.Graphics
 			{
 				// Display on single line if name fits comfortably, otherwise use 'formatted' version (split across multiple lines)
 				string displayName = isKeyChip ? subchip.activationKeyString : subchip.MultiLineName;
-				if (Draw.CalculateTextBoundsSize(subchip.Description.Name, FontSizeChipName, FontBold).x < subchip.Size.x - PinRadius * 2.5f)
+				if (Draw.CalculateTextBoundsSize(subchip.Description.Name, FontSizeChipName, FontBold).x < chipSize.x - PinRadius * 2.5f)
 				{
 					displayName = subchip.Description.Name;
 				}
 
 				bool nameCentre = desc.NameLocation == NameDisplayLocation.Centre || isKeyChip;
 				Anchor textAnchor = nameCentre ? Anchor.TextCentre : Anchor.CentreTop;
-				Vector2 textPos = nameCentre ? pos : pos + Vector2.up * (subchip.Size.y / 2 - GridSize / 2);
+				Vector2 textPos = nameCentre ? pos : pos + Vector2.up * (chipSize.y / 2 - GridSize / 2);
 
 				// Draw background band behind text if placed at top (so it doesn't look out of place..)
 				if (desc.NameLocation == NameDisplayLocation.Top)
 				{
 					Color bgBandCol = GetChipDisplayBorderCol(chipCol);
-					Vector2 topLeft = pos + new Vector2(-desc.Size.x / 2, desc.Size.y / 2);
+					Vector2 topLeft = pos + new Vector2(-chipSize.x / 2, chipSize.y / 2);
 					TextRenderer.BoundingBox textBounds = Draw.CalculateTextBounds(displayName, FontBold, FontSizeChipName, textPos, textAnchor);
 					float h = (topLeft.y - textBounds.Centre.y) * 2;
 
-					Vector2 s = new(desc.Size.x, h);
+					Vector2 s = new(chipSize.x, h);
 					Vector2 c = topLeft + new Vector2(s.x, -s.y) / 2;
 					Draw.Quad(c, s, bgBandCol);
 				}
@@ -620,7 +633,10 @@ namespace DLS.Graphics
 
 			// Draw pin and handle
 			DrawPin(devPin.Pin);
-			DrawPinHandle(devPin, devPin.HandlePosition, devPin.GetHandleSize());
+			
+			Vector2 handleSize = devPin.GetHandleSize();
+			if (devPin.Rotation % 2 != 0) (handleSize.x, handleSize.y) = (handleSize.y, handleSize.x);
+			DrawPinHandle(devPin, devPin.HandlePosition, handleSize);
 		}
 
 		public static void DrawMultiBitDevPin(DevPinInstance devPin)
@@ -637,7 +653,9 @@ namespace DLS.Graphics
 			Vector2 inputGridSizeWithoutOutline = inputGridSize - Vector2.one * DevPinStateDisplayOutline;
 			Vector2 centre = devPin.StateDisplayPosition;
 
-			Vector2 topLeft = new(centre.x - inputGridSizeWithoutOutline.x / 2, centre.y + inputGridSizeWithoutOutline.y / 2);
+			// Rotate the grid layout
+			Vector2 topLeftLocal = new(-inputGridSizeWithoutOutline.x / 2, inputGridSizeWithoutOutline.y / 2);
+			
 			Draw.Quad(centre, inputGridSize, Color.black);
 			int currBitIndex = (int)devPin.BitCount - 1;
 
@@ -652,7 +670,8 @@ namespace DLS.Graphics
 			{
 				for (int x = 0; x < stateGridDim.x; x++)
 				{
-					Vector2 pos = topLeft + MultiBitPinStateDisplaySquareSize * new Vector2(x + 0.5f, -(y + 0.5f));
+					Vector2 localOffset = MultiBitPinStateDisplaySquareSize * new Vector2(x + 0.5f, -(y + 0.5f));
+					Vector2 pos = centre + DevPinInstance.RotateVector(topLeftLocal + localOffset, devPin.Rotation);
 
 					// Highlight on hover, toggle on press
 					bool mouseOverStateToggle = InputHelper.MouseInsideBounds_World(pos, squareDisplaySize);
@@ -676,7 +695,10 @@ namespace DLS.Graphics
 
 			// Draw pin and handle
 			DrawPin(devPin.Pin);
-			DrawPinHandle(devPin, devPin.HandlePosition, devPin.GetHandleSize());
+			
+			Vector2 handleSize = devPin.GetHandleSize();
+			if (devPin.Rotation % 2 != 0) (handleSize.x, handleSize.y) = (handleSize.y, handleSize.x);
+			DrawPinHandle(devPin, devPin.HandlePosition, handleSize);
 		}
 
 

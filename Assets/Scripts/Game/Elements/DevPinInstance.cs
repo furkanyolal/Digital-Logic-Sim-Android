@@ -30,6 +30,7 @@ namespace DLS.Game
 			ID = pinDescription.ID;
 			IsInputPin = isInput;
 			Position = pinDescription.Position;
+			Rotation = pinDescription.Rotation;
 			BitCount = pinDescription.BitCount;
 
 			Pin = new PinInstance(pinDescription, new PinAddress(ID, 0), this, isInput);
@@ -52,20 +53,32 @@ namespace DLS.Game
 		}
 
 		public Vector2 HandlePosition => Position;
-		public Vector2 StateDisplayPosition => HandlePosition + faceDir * (DevPinHandleWidth / 2 + StateGridSize.x / 2 + 0.065f);
+		public Vector2 StateDisplayPosition => HandlePosition + RotateVector(faceDir * (DevPinHandleWidth / 2 + StateGridSize.x / 2 + 0.065f), Rotation);
 
 		public Vector2 PinPosition
 		{
 			get
 			{
 				int gridDst = BitCount is PinBitCount.Bit1 or PinBitCount.Bit4 ? 6 : 9;
-				return HandlePosition + faceDir * (GridSize * gridDst);
+				return HandlePosition + RotateVector(faceDir * (GridSize * gridDst), Rotation);
 			}
 		}
 
 
 		public Vector2 Position { get; set; }
+		public int Rotation { get; set; }
 		public Vector2 MoveStartPosition { get; set; }
+
+		public static Vector2 RotateVector(Vector2 v, int rotation)
+		{
+			return rotation switch
+			{
+				1 => new Vector2(-v.y, v.x),
+				2 => new Vector2(-v.x, -v.y),
+				3 => new Vector2(v.y, -v.x),
+				_ => v
+			};
+		}
 		public Vector2 StraightLineReferencePoint { get; set; }
 		public int ID { get; }
 
@@ -101,17 +114,37 @@ namespace DLS.Game
 
 		Bounds2D CreateBoundingBox(float pad)
 		{
-			float x1 = HandlePosition.x - faceDir.x * DevPinHandleWidth / 2;
-			float x2 = PinPosition.x + faceDir.x * PinRadius;
-			float minX = Mathf.Min(x1, x2);
-			float maxX = Mathf.Max(x1, x2);
+			Vector2 p1 = HandlePosition - RotateVector(faceDir * (DevPinHandleWidth / 2), Rotation);
+			Vector2 p2 = PinPosition + RotateVector(faceDir * PinRadius, Rotation);
+			
+			float minX = Mathf.Min(p1.x, p2.x);
+			float maxX = Mathf.Max(p1.x, p2.x);
+			float minY = Mathf.Min(p1.y, p2.y);
+			float maxY = Mathf.Max(p1.y, p2.y);
 
-			Vector2 centre = new((minX + maxX) / 2, HandlePosition.y);
-			Vector2 size = new Vector2(maxX - minX, BoundsHeight()) + Vector2.one * pad;
-			return Bounds2D.CreateFromCentreAndSize(centre, size);
+			float h = BoundsHeight();
+			if (Rotation % 2 == 0)
+			{
+				minY = Mathf.Min(minY, HandlePosition.y - h / 2);
+				maxY = Mathf.Max(maxY, HandlePosition.y + h / 2);
+			}
+			else
+			{
+				minX = Mathf.Min(minX, HandlePosition.x - h / 2);
+				maxX = Mathf.Max(maxX, HandlePosition.x + h / 2);
+			}
+
+			Vector2 centre = new((minX + maxX) / 2, (minY + maxY) / 2);
+			Vector2 size = new(maxX - minX, maxY - minY);
+			return Bounds2D.CreateFromCentreAndSize(centre, size + Vector2.one * pad);
 		}
 
-		public Bounds2D HandleBounds() => Bounds2D.CreateFromCentreAndSize(HandlePosition, GetHandleSize());
+		public Bounds2D HandleBounds()
+		{
+			Vector2 size = GetHandleSize();
+			if (Rotation % 2 != 0) (size.x, size.y) = (size.y, size.x);
+			return Bounds2D.CreateFromCentreAndSize(HandlePosition, size);
+		}
 
 		public float BoundsHeight() => StateGridSize.y;
 

@@ -36,6 +36,7 @@ namespace DLS.Game
 			ChipType = description.ChipType;
 			Description = description;
 			Position = subChipDesc.Position;
+			Rotation = subChipDesc.Rotation;
 			ID = subChipDesc.ID;
 			Label = subChipDesc.Label;
 			IsBus = ChipTypeHelper.IsBusType(ChipType);
@@ -96,6 +97,7 @@ namespace DLS.Game
 		public bool BusIsFlipped => IsBus && InternalData.Length > 1 && InternalData[1] == 1;
 		public Vector2 Size => Description.Size;
 		public Vector2 Position { get; set; }
+		public int Rotation { get; set; }
 
 		public Vector2 MoveStartPosition { get; set; }
 		public Vector2 StraightLineReferencePoint { get; set; }
@@ -283,7 +285,10 @@ namespace DLS.Game
 			}
 
 			Vector2 padFinal = new(pinWidthPad + DrawSettings.ChipOutlineWidth + pad, DrawSettings.ChipOutlineWidth + pad);
-			return Bounds2D.CreateFromCentreAndSize(Position + Vector2.right * offsetX, Size + padFinal);
+			Vector2 rotatedSize = Size + padFinal;
+			if (Rotation % 2 != 0) (rotatedSize.x, rotatedSize.y) = (rotatedSize.y, rotatedSize.x);
+
+			return Bounds2D.CreateFromCentreAndSize(Position + DevPinInstance.RotateVector(Vector2.right * offsetX, Rotation), rotatedSize);
 		}
 
 		public static Vector2 CalculateMinChipSize(PinDescription[] inputPins, PinDescription[] outputPins, string unformattedName)

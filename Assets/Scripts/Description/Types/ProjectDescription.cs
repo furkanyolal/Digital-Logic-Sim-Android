@@ -18,9 +18,12 @@ namespace DLS.Description
 		public int Prefs_GridDisplayMode;
 		public int Prefs_Snapping;
 		public int Prefs_StraightWires;
+		public int Prefs_ToolbarPlacement;
 		public bool Prefs_SimPaused;
 		public int Prefs_SimTargetStepsPerSecond;
 		public int Prefs_SimStepsPerClockTick;
+		public bool Prefs_UseRadialMenu;
+		public bool Prefs_HapticFeedback;
 
 		// List of all player-created chips (in order of creation -- oldest first)
 		public string[] AllCustomChipNames;

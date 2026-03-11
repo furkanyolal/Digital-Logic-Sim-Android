@@ -6,6 +6,7 @@ namespace DLS.Game
 	public interface IMoveable : IInteractable
 	{
 		Vector2 Position { get; set; }
+		int Rotation { get; set; }
 		Vector2 MoveStartPosition { get; set; }
 		Vector2 StraightLineReferencePoint { get; set; }
 		bool HasReferencePointForStraightLineMovement { get; set; }
