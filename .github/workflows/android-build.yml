@@ -1,0 +1,82 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger workflow on version tags (e.g., v1.0.0)
+  workflow_dispatch: # Allow manual triggering from GitHub UI
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      # Cache Unity Library folder to speed up subsequent builds
+      - name: Cache Unity Library
+        uses: actions/cache@v3
+        with:
+          path: Library
+          key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-
+
+      # Free up disk space on the GitHub runner
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      # Build the Unity project for Android
+      - name: Build Android APK
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: Android
+          buildName: DigitalLogicSim
+          buildMethod: UnityEditor.BuildPlayerWindow+ProjectBuildTarget.Build
+          customParameters: -buildTarget Android -customBuildPath build/Android/DigitalLogicSim.apk
+
+      # Upload the APK as an artifact for the workflow run
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DigitalLogicSim-APK
+          path: build/Android/DigitalLogicSim.apk
+
+  # Optional job to automatically create a GitHub Release
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') # Only run if triggered by a tag
+
+    steps:
+      - name: Download APK Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: DigitalLogicSim-APK
+          path: build/Android
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/Android/DigitalLogicSim.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
